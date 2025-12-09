@@ -1,0 +1,598 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Settings, Users, Grid, Zap, Crown, Shuffle, Trash2, GripVertical, CheckCircle, AlertCircle, Copy, Share2, Globe, Sparkles, ArrowRight, HelpCircle, X, Info } from 'lucide-react';
+
+// --- Translations / Config ---
+
+const APP_NAME = "TeamFlux";
+
+const TRANSLATIONS = {
+  zh: {
+    title: APP_NAME,
+    subtitle: "為您的團隊注入流動的能量",
+    pasteTitle: "1. 名單輸入",
+    pastePlaceholder: "在此貼上名字，自動換行...\n例如：\n小明\n小華\nBatman",
+    pasteHint: "每行一個名字或用逗號分隔",
+    settingsTitle: "2. 分組規則",
+    modeCount: "總組數",
+    modeSize: "每組人數",
+    labelCount: "總共要分幾組？",
+    labelSize: "每組要有幾人？",
+    btnShuffle: "開始分組",
+    btnShuffling: "運算中...",
+    groupLabel: "第",
+    groupUnit: "組",
+    peopleUnit: "人",
+    dragHint: "拖曳名字以調整分組",
+    emptyStateTitle: "準備好了嗎？",
+    emptyStateDesc: "輸入名單並設定規則，讓魔法發生。",
+    upgradeTitle: "升級至 Pro",
+    upgradeDesc: "解鎖完整的團隊管理體驗",
+    upgradeFeature1: "雲端儲存班級名單",
+    upgradeFeature2: "設定排斥條件 (Anti-pairing)",
+    upgradeFeature3: "匯出高解析度圖表",
+    upgradeBtn: "尚未開放",
+    upgradeCancel: "稍後再說",
+    helpTitle: "如何使用 TeamFlux",
+    helpStep1: "貼上名單：支援 Excel 或文字檔直接貼上。",
+    helpStep2: "設定規則：決定要分幾組，或是每組幾人。",
+    helpStep3: "一鍵分組：觀賞流暢的物理動畫。",
+    helpStep4: "拖拉微調：不滿意？直接拖曳名字換組。",
+    helpClose: "開始使用",
+    defaultNames: "小明\n小華\n小美\nJohn\nAlice\nBob\nTom\nJerry\nBatman\nIronMan\nSpiderman\nWonderWoman\nThor\nHulk\nBlackWidow\nHawkeye"
+  },
+  en: {
+    title: APP_NAME,
+    subtitle: "Inject fluid energy into your teams",
+    pasteTitle: "1. Roster Input",
+    pastePlaceholder: "Paste names here...\ne.g.:\nJohn\nAlice\nBatman",
+    pasteHint: "One name per line or comma separated",
+    settingsTitle: "2. Configuration",
+    modeCount: "Group Count",
+    modeSize: "Group Size",
+    labelCount: "Total number of groups?",
+    labelSize: "People per group?",
+    btnShuffle: "Shuffle Teams",
+    btnShuffling: "Shuffling...",
+    groupLabel: "Group",
+    groupUnit: "",
+    peopleUnit: "members",
+    dragHint: "Drag names to reorder",
+    emptyStateTitle: "Ready to Start?",
+    emptyStateDesc: "Input names and set rules to make magic happen.",
+    upgradeTitle: "Upgrade to Pro",
+    upgradeDesc: "Unlock the full management experience",
+    upgradeFeature1: "Cloud save rosters",
+    upgradeFeature2: "Anti-pairing logic",
+    upgradeFeature3: "Export HD charts",
+    upgradeBtn: "Coming Soon",
+    upgradeCancel: "Maybe Later",
+    helpTitle: "How to use TeamFlux",
+    helpStep1: "Input Roster: Paste names from Excel or text.",
+    helpStep2: "Set Rules: Choose by group count or group size.",
+    helpStep3: "Shuffle: Watch the magic animation happen.",
+    helpStep4: "Refine: Drag & drop names to adjust groups.",
+    helpClose: "Got it, let's go!",
+    defaultNames: "Liam\nNoah\nOliver\nElijah\nJames\nWilliam\nBenjamin\nLucas\nHenry\nTheodore\nEmma\nCharlotte\nAmelia\nAva\nSophia\nIsabella"
+  }
+};
+
+// --- Components ---
+
+const Button = ({ children, onClick, variant = 'primary', className = '', disabled = false }) => {
+  const baseStyle = "px-5 py-2.5 rounded-xl font-medium transition-all duration-300 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed select-none";
+  const variants = {
+    primary: "bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 border border-indigo-500",
+    secondary: "bg-white/80 backdrop-blur-sm text-slate-700 border border-slate-200 hover:bg-white hover:border-indigo-300 shadow-sm",
+    ghost: "text-slate-500 hover:bg-slate-100/50 hover:text-slate-800",
+    premium: "bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-lg shadow-orange-500/30 hover:shadow-orange-500/50 border border-orange-400/20",
+    glass: "bg-white/10 backdrop-blur-md border border-white/20 text-slate-800 hover:bg-white/30 hover:shadow-lg"
+  };
+
+  return (
+    <button onClick={onClick} disabled={disabled} className={`${baseStyle} ${variants[variant]} ${className}`}>
+      {children}
+    </button>
+  );
+};
+
+const Card = ({ children, title, className = '' }) => (
+  <div className={`bg-white/70 backdrop-blur-xl rounded-2xl shadow-xl shadow-slate-200/50 border border-white/50 overflow-hidden ${className}`}>
+    {title && <div className="px-5 py-4 border-b border-slate-100/50 bg-white/40 font-semibold text-slate-700 flex items-center gap-2">{title}</div>}
+    <div className="p-5">{children}</div>
+  </div>
+);
+
+const NameTag = ({ name, id, groupId, onDragStart }) => (
+  <div
+    draggable
+    onDragStart={(e) => onDragStart(e, { id, name, groupId })}
+    className="group relative bg-white border border-slate-100 rounded-lg px-3 py-2.5 text-sm text-slate-700 shadow-sm cursor-grab active:cursor-grabbing hover:border-indigo-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-between animate-fadeIn"
+  >
+    <div className="flex items-center gap-2.5">
+      <div className="text-slate-300 group-hover:text-indigo-500 transition-colors">
+        <GripVertical size={14} />
+      </div>
+      <span className="font-semibold tracking-wide text-slate-800">{name}</span>
+    </div>
+  </div>
+);
+
+// --- Background Component ---
+const BackgroundDecor = () => (
+  <div className="fixed inset-0 z-0 pointer-events-none">
+    <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-slate-50 via-slate-100 to-indigo-50/30"></div>
+    <div className="absolute -top-[10%] -right-[10%] w-[80vh] h-[80vh] rounded-full bg-indigo-300/10 blur-[80px]"></div>
+    <div className="absolute top-[30%] -left-[10%] w-[60vh] h-[60vh] rounded-full bg-blue-300/10 blur-[80px]"></div>
+  </div>
+);
+
+// --- Welcome Screen Component ---
+const WelcomeScreen = ({ onSelectLanguage }) => (
+  <div className="fixed inset-0 z-50 flex flex-col items-center justify-center overflow-hidden">
+    <BackgroundDecor />
+
+    <div className="relative z-10 flex flex-col items-center animate-slideUp">
+      <div className="mb-8 p-4 bg-white/40 backdrop-blur-xl rounded-2xl border border-white/50 shadow-xl shadow-indigo-100">
+        <Shuffle size={64} className="text-indigo-600 drop-shadow-sm" />
+      </div>
+      <h1 className="text-5xl font-bold text-slate-800 mb-2 tracking-tight drop-shadow-sm">{APP_NAME}</h1>
+      <p className="text-slate-500 mb-12 text-lg tracking-wide font-medium">Choose your language / 選擇您的語言</p>
+      
+      <div className="flex gap-6">
+        <button 
+          onClick={() => onSelectLanguage('en')}
+          className="group w-40 h-48 bg-white/60 backdrop-blur-md border border-white rounded-2xl flex flex-col items-center justify-center gap-4 hover:bg-white hover:shadow-xl hover:scale-105 transition-all duration-300 shadow-lg shadow-slate-200/50"
+        >
+          <span className="text-4xl text-slate-700 group-hover:text-indigo-600 transition-colors">Aa</span>
+          <span className="text-slate-600 font-bold group-hover:text-indigo-600">English</span>
+        </button>
+        <button 
+          onClick={() => onSelectLanguage('zh')}
+          className="group w-40 h-48 bg-white/60 backdrop-blur-md border border-white rounded-2xl flex flex-col items-center justify-center gap-4 hover:bg-white hover:shadow-xl hover:scale-105 transition-all duration-300 shadow-lg shadow-slate-200/50"
+        >
+          <span className="text-4xl text-slate-700 group-hover:text-indigo-600 transition-colors">文</span>
+          <span className="text-slate-600 font-bold group-hover:text-indigo-600">繁體中文</span>
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+// --- Main App ---
+
+export default function App() {
+  // State
+  const [lang, setLang] = useState(null); // 'en' or 'zh' or null (for welcome screen)
+  const [inputNames, setInputNames] = useState("");
+  const [mode, setMode] = useState('count');
+  const [settingValue, setSettingValue] = useState(4);
+  const [groups, setGroups] = useState([]);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [animationPhase, setAnimationPhase] = useState('idle');
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [draggedItem, setDraggedItem] = useState(null);
+
+  // Helper for current language text
+  const t = lang ? TRANSLATIONS[lang] : TRANSLATIONS['en'];
+
+  // Handle Language Selection
+  const handleLanguageSelect = (selectedLang) => {
+    setLang(selectedLang);
+    setInputNames(TRANSLATIONS[selectedLang].defaultNames);
+  };
+
+  const toggleLanguage = () => {
+    const newLang = lang === 'en' ? 'zh' : 'en';
+    setLang(newLang);
+    // Optional: Update placeholder if input is empty, but usually we keep user input
+    if (inputNames === TRANSLATIONS[lang].defaultNames) {
+        setInputNames(TRANSLATIONS[newLang].defaultNames);
+    }
+  };
+
+  // Derived state
+  const nameList = inputNames.split(/\n|,/).map(n => n.trim()).filter(n => n);
+  const totalPeople = nameList.length;
+
+  const shuffleArray = (array) => {
+    let currentIndex = array.length, randomIndex;
+    while (currentIndex !== 0) {
+      randomIndex = Math.floor(Math.random() * currentIndex);
+      currentIndex--;
+      [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+    }
+    return array;
+  };
+
+  const handleShuffle = () => {
+    if (totalPeople === 0) return;
+    
+    setAnimationPhase('scattering');
+    setIsAnimating(true);
+    setGroups([]);
+
+    setTimeout(() => {
+      setAnimationPhase('distributing');
+      
+      const shuffled = shuffleArray([...nameList]);
+      let newGroups = [];
+      let numGroups = 0;
+
+      if (mode === 'count') {
+        numGroups = settingValue;
+        for (let i = 0; i < numGroups; i++) newGroups.push([]);
+        shuffled.forEach((name, index) => {
+          newGroups[index % numGroups].push({ id: `p-${index}-${Date.now()}`, name });
+        });
+      } else {
+        const size = settingValue;
+        numGroups = Math.ceil(totalPeople / size);
+        for (let i = 0; i < numGroups; i++) newGroups.push([]);
+        shuffled.forEach((name, index) => {
+          const groupIndex = Math.floor(index / size);
+          newGroups[groupIndex].push({ id: `p-${index}-${Date.now()}`, name });
+        });
+      }
+
+      setTimeout(() => {
+        setGroups(newGroups);
+        setAnimationPhase('done');
+        setIsAnimating(false);
+      }, 800);
+
+    }, 1500);
+  };
+
+  const handleDragStart = (e, item) => {
+    setDraggedItem(item);
+    e.dataTransfer.setData('text/plain', JSON.stringify(item));
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e, targetGroupIndex) => {
+    e.preventDefault();
+    if (!draggedItem) return;
+    const sourceGroupIndex = draggedItem.groupId;
+    if (sourceGroupIndex === targetGroupIndex) return;
+
+    const newGroups = [...groups];
+    newGroups[sourceGroupIndex] = newGroups[sourceGroupIndex].filter(i => i.id !== draggedItem.id);
+    newGroups[targetGroupIndex].push({ id: draggedItem.id, name: draggedItem.name });
+
+    setGroups(newGroups);
+    setDraggedItem(null);
+  };
+
+  // If no language selected, show welcome screen
+  if (!lang) {
+    return <WelcomeScreen onSelectLanguage={handleLanguageSelect} />;
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-indigo-200 selection:text-indigo-900 relative overflow-x-hidden">
+      
+      <BackgroundDecor />
+
+      {/* Header */}
+      <header className="sticky top-0 z-30 bg-white/70 backdrop-blur-md border-b border-white/50 supports-[backdrop-filter]:bg-white/60">
+        <div className="max-w-7xl mx-auto px-4 h-18 flex items-center justify-between py-3">
+          <div className="flex items-center gap-3 group cursor-pointer" onClick={() => setLang(null)}>
+            <div className="bg-gradient-to-br from-indigo-600 to-violet-600 text-white p-2 rounded-xl shadow-lg shadow-indigo-500/20 group-hover:scale-105 transition-transform">
+              <Shuffle size={20} strokeWidth={2.5} />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-800 to-slate-600 tracking-tight">
+                {t.title}
+              </h1>
+              <p className="text-[10px] text-slate-400 font-medium tracking-wider uppercase">{t.subtitle}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+             <Button variant="ghost" onClick={toggleLanguage} className="p-2 rounded-full hidden sm:flex" title="Switch Language">
+               <Globe size={18} />
+               <span className="text-xs font-bold uppercase">{lang === 'en' ? 'EN' : '中'}</span>
+             </Button>
+             <Button variant="ghost" onClick={() => setShowHelpModal(true)} className="p-2 rounded-full" title="Help">
+               <HelpCircle size={20} />
+             </Button>
+             <div className="h-6 w-px bg-slate-200 mx-1"></div>
+             <Button variant="premium" onClick={() => setShowUpgradeModal(true)} className="text-xs px-4 py-2 rounded-full font-bold uppercase tracking-wider">
+               <Crown size={14} /> <span className="hidden sm:inline">Pro</span>
+             </Button>
+          </div>
+        </div>
+      </header>
+
+      <main className="relative z-10 max-w-7xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        {/* Left Panel: Configuration */}
+        <div className="lg:col-span-4 space-y-6">
+          
+          <Card title={t.pasteTitle} className="h-[420px] flex flex-col">
+            <div className="flex-1 flex flex-col gap-3">
+              <textarea
+                className="flex-1 w-full p-4 bg-slate-50/50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 outline-none resize-none text-sm font-medium leading-relaxed transition-all placeholder:text-slate-400"
+                placeholder={t.pastePlaceholder}
+                value={inputNames}
+                onChange={(e) => setInputNames(e.target.value)}
+              />
+              <div className="flex justify-between items-center px-1">
+                <span className="text-xs text-slate-400 font-medium">{t.pasteHint}</span>
+                <span className="bg-indigo-50 text-indigo-600 text-xs font-bold px-2 py-1 rounded-md">{totalPeople} {t.peopleUnit}</span>
+              </div>
+            </div>
+          </Card>
+
+          <Card title={t.settingsTitle}>
+            <div className="space-y-8">
+              <div className="flex p-1 bg-slate-100/80 rounded-xl">
+                <button
+                  onClick={() => setMode('count')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold rounded-lg transition-all duration-300 ${mode === 'count' ? 'bg-white text-indigo-600 shadow-md transform scale-100' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  <Grid size={16} /> {t.modeCount}
+                </button>
+                <button
+                  onClick={() => setMode('size')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold rounded-lg transition-all duration-300 ${mode === 'size' ? 'bg-white text-indigo-600 shadow-md transform scale-100' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  <Users size={16} /> {t.modeSize}
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex justify-between text-sm font-semibold text-slate-700">
+                  <span>{mode === 'count' ? t.labelCount : t.labelSize}</span>
+                  <span className="text-2xl font-bold text-indigo-600 font-mono bg-indigo-50 px-3 py-1 rounded-lg border border-indigo-100">{settingValue}</span>
+                </div>
+                <input
+                  type="range"
+                  min="2"
+                  max={totalPeople > 2 ? totalPeople : 10}
+                  value={settingValue}
+                  onChange={(e) => setSettingValue(parseInt(e.target.value))}
+                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600 hover:accent-indigo-500 transition-colors"
+                />
+              </div>
+
+              <Button 
+                onClick={handleShuffle} 
+                disabled={totalPeople < 2 || isAnimating}
+                className="w-full h-14 text-lg font-bold shadow-indigo-500/40 hover:shadow-indigo-500/60"
+              >
+                {isAnimating ? (
+                  <span className="flex items-center gap-3 animate-pulse">
+                    <Zap size={20} className="animate-spin-slow" /> {t.btnShuffling}
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-3">
+                    <Sparkles size={20} fill="currentColor" /> {t.btnShuffle}
+                  </span>
+                )}
+              </Button>
+            </div>
+          </Card>
+        </div>
+
+        {/* Right Panel: Visualization */}
+        <div className="lg:col-span-8 min-h-[500px]">
+           {/* Animation Stage: Scattering */}
+           {animationPhase === 'scattering' && (
+             <div className="h-full w-full flex items-center justify-center bg-white/40 backdrop-blur-xl rounded-3xl shadow-inner border border-white/50 relative overflow-hidden">
+               <div className="absolute inset-0 bg-white/20 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
+                 <div className="relative">
+                   <div className="absolute inset-0 bg-indigo-500 blur-3xl opacity-20 animate-pulse rounded-full"></div>
+                   <div className="text-7xl animate-bounce drop-shadow-2xl">🎲</div>
+                 </div>
+                 <h3 className="mt-8 text-2xl font-bold text-slate-800 animate-pulse tracking-wide">{t.btnShuffling}</h3>
+                 <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                    {[...Array(25)].map((_, i) => (
+                      <div 
+                        key={i}
+                        className="absolute bg-indigo-500 rounded-full opacity-30 animate-ping"
+                        style={{
+                          left: `${Math.random() * 100}%`,
+                          top: `${Math.random() * 100}%`,
+                          width: `${Math.random() * 15 + 5}px`,
+                          height: `${Math.random() * 15 + 5}px`,
+                          animationDuration: `${Math.random() * 1 + 0.5}s`,
+                          animationDelay: `${Math.random()}s`
+                        }}
+                      />
+                    ))}
+                 </div>
+               </div>
+             </div>
+           )}
+
+           {/* Results Stage */}
+           {(animationPhase === 'distributing' || animationPhase === 'done') && (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 auto-rows-min animate-slideUp">
+              {groups.map((group, groupIndex) => (
+                <div
+                  key={groupIndex}
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, groupIndex)}
+                  className={`group/card bg-white/80 backdrop-blur-md rounded-2xl border border-white shadow-lg shadow-slate-200/50 flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${draggedItem ? 'border-dashed border-indigo-400 bg-indigo-50/50' : ''}`}
+                >
+                  <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-white/50 to-transparent rounded-t-2xl">
+                    <h3 className="font-bold text-slate-700 flex items-center gap-2">
+                      <span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-1 rounded-md uppercase tracking-wider">{t.groupLabel} {groupIndex + 1}</span> 
+                      {t.groupUnit}
+                    </h3>
+                    <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-full border border-slate-200">
+                      {group.length} {t.peopleUnit}
+                    </span>
+                  </div>
+                  <div className="p-4 min-h-[120px] space-y-2.5">
+                    {group.length === 0 ? (
+                      <div className="h-full flex flex-col items-center justify-center text-slate-300 text-sm italic py-6 gap-2 border-2 border-dashed border-slate-100 rounded-lg">
+                        <GripVertical className="opacity-50" />
+                        {t.dragHint}
+                      </div>
+                    ) : (
+                      group.map((person) => (
+                        <NameTag 
+                          key={person.id} 
+                          id={person.id}
+                          name={person.name} 
+                          groupId={groupIndex}
+                          onDragStart={handleDragStart}
+                        />
+                      ))
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+           )}
+
+           {/* Empty State */}
+           {animationPhase === 'idle' && (
+             <div className="h-full w-full flex flex-col items-center justify-center text-slate-400 bg-white/40 backdrop-blur-md border-2 border-dashed border-slate-300/50 rounded-3xl min-h-[500px] animate-fadeIn">
+               <div className="w-28 h-28 bg-white rounded-full flex items-center justify-center shadow-2xl shadow-indigo-100 mb-6 relative group">
+                  <div className="absolute inset-0 rounded-full border-4 border-indigo-50 animate-pulse-slow"></div>
+                  <Users size={48} className="text-indigo-200 group-hover:text-indigo-400 transition-colors duration-500" />
+               </div>
+               <p className="text-2xl font-bold text-slate-700 mb-2">{t.emptyStateTitle}</p>
+               <p className="text-base text-slate-500 font-medium">{t.emptyStateDesc}</p>
+             </div>
+           )}
+        </div>
+      </main>
+
+      {/* Upgrade Modal */}
+      {showUpgradeModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden scale-100 animate-scaleIn border border-white/50 relative">
+            <button onClick={() => setShowUpgradeModal(false)} className="absolute top-4 right-4 text-white/80 hover:text-white transition-colors z-20">
+               <X size={24} />
+            </button>
+            <div className="relative bg-slate-900 p-8 text-white text-center overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 to-violet-600 opacity-90"></div>
+              <div className="absolute -top-10 -right-10 w-32 h-32 bg-amber-400 rounded-full blur-[50px] opacity-40"></div>
+              
+              <div className="relative z-10">
+                <Crown size={56} className="mx-auto mb-4 text-amber-300 drop-shadow-glow" />
+                <h2 className="text-3xl font-bold tracking-tight">{t.upgradeTitle}</h2>
+                <p className="text-indigo-100 mt-2 font-medium opacity-90">{t.upgradeDesc}</p>
+              </div>
+            </div>
+            <div className="p-8 space-y-6 bg-white">
+              <ul className="space-y-4">
+                <li className="flex items-center gap-4 text-slate-700 group">
+                  <div className="p-1 bg-green-100 rounded-full text-green-600 group-hover:scale-110 transition-transform"><CheckCircle size={18} /></div>
+                  <span className="font-medium">{t.upgradeFeature1}</span>
+                </li>
+                <li className="flex items-center gap-4 text-slate-700 group">
+                  <div className="p-1 bg-green-100 rounded-full text-green-600 group-hover:scale-110 transition-transform"><CheckCircle size={18} /></div>
+                  <span className="font-medium">{t.upgradeFeature2}</span>
+                </li>
+                <li className="flex items-center gap-4 text-slate-700 group">
+                  <div className="p-1 bg-green-100 rounded-full text-green-600 group-hover:scale-110 transition-transform"><CheckCircle size={18} /></div>
+                  <span className="font-medium">{t.upgradeFeature3}</span>
+                </li>
+              </ul>
+              <div className="pt-4 flex flex-col gap-3">
+                <Button variant="premium" onClick={() => alert('功能開發中，敬請期待！')} className="w-full h-12 text-lg shadow-amber-500/20">
+                  {t.upgradeBtn} <ArrowRight size={18} />
+                </Button>
+                <button onClick={() => setShowUpgradeModal(false)} className="text-slate-400 text-sm hover:text-slate-600 font-medium py-2">
+                  {t.upgradeCancel}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Help Modal */}
+      {showHelpModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden scale-100 animate-scaleIn border border-white/50 relative">
+            <button onClick={() => setShowHelpModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors z-20">
+               <X size={24} />
+            </button>
+            <div className="p-8 pb-0">
+               <div className="flex items-center gap-3 mb-6">
+                 <div className="p-3 bg-indigo-100 text-indigo-600 rounded-2xl">
+                    <Info size={32} />
+                 </div>
+                 <h2 className="text-2xl font-bold text-slate-800">{t.helpTitle}</h2>
+               </div>
+            </div>
+            <div className="p-8 pt-0 space-y-6">
+              <div className="grid gap-6">
+                <div className="flex gap-4">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-500">1</div>
+                  <div>
+                    <h3 className="font-bold text-slate-800">{t.pasteTitle}</h3>
+                    <p className="text-slate-500 text-sm mt-1 leading-relaxed">{t.helpStep1}</p>
+                  </div>
+                </div>
+                <div className="flex gap-4">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-500">2</div>
+                  <div>
+                    <h3 className="font-bold text-slate-800">{t.settingsTitle}</h3>
+                    <p className="text-slate-500 text-sm mt-1 leading-relaxed">{t.helpStep2}</p>
+                  </div>
+                </div>
+                <div className="flex gap-4">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-500">3</div>
+                  <div>
+                    <h3 className="font-bold text-slate-800">{t.btnShuffle}</h3>
+                    <p className="text-slate-500 text-sm mt-1 leading-relaxed">{t.helpStep3}</p>
+                  </div>
+                </div>
+                <div className="flex gap-4">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-500">4</div>
+                  <div>
+                    <h3 className="font-bold text-slate-800">Drag & Drop</h3>
+                    <p className="text-slate-500 text-sm mt-1 leading-relaxed">{t.helpStep4}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="pt-4">
+                <Button onClick={() => setShowHelpModal(false)} className="w-full h-12 text-lg">
+                  {t.helpClose}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(30px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes scaleIn {
+          from { opacity: 0; transform: scale(0.9); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        @keyframes pulse-slow {
+          0%, 100% { transform: scale(1); opacity: 0.5; }
+          50% { transform: scale(1.1); opacity: 0.8; }
+        }
+        .animate-fadeIn { animation: fadeIn 0.4s ease-out forwards; }
+        .animate-slideUp { animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .animate-scaleIn { animation: scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+        .animate-spin-slow { animation: spin 2s linear infinite; }
+        .animate-pulse-slow { animation: pulse-slow 4s ease-in-out infinite; }
+        .drop-shadow-glow { filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.5)); }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
+    </div>
+  );
+}
